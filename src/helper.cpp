@@ -24,6 +24,7 @@
 #include "src/imagewriter.h"
 #if defined(Q_OS_LINUX)
 #include "src/signalhandler.h"
+#include <QProcess>
 #endif
 #include <QFile>
 #include <QDir>
@@ -36,7 +37,7 @@
 #include <QDebug>
 
 Helper::Helper(QObject *parent) : QObject(parent),
-    progressValue(0), maxValue(1),comboBoxIndex(-1), b(false)
+    progressValue(0), maxValue(1),comboBoxIndex(-1), b(false), retryCount(0)
 {
 
 #if defined(Q_OS_LINUX)
@@ -62,6 +63,11 @@ int Helper::progress() const
     return progressValue;
 }
 
+QString Helper::messageFromBackend() const
+{
+    return m_messageFromBackend;
+}
+
 QString Helper::filePathFromArguments() const
 {
     const QStringList args = QCoreApplication::arguments();
@@ -70,7 +76,7 @@ QString Helper::filePathFromArguments() const
         path =  args.at(1);
         QString suffix = QFileInfo(path).suffix();
         if( suffix == "iso" || suffix == "bin" || suffix == "img" ||
-            suffix == "ISO" || suffix == "BIN" || suffix == "IMG") {
+                suffix == "ISO" || suffix == "BIN" || suffix == "IMG") {
             path = QDir(path).absolutePath();
         }
     }
@@ -100,8 +106,8 @@ void Helper::scheduleEnumFlashDevices()
 {
     emit scheduleStarted();
     comboBoxIndex = -1;
-    dl.clear();
     udl = platformEnumFlashDevices();
+    dl.clear();
     for(int i = 0; i < udl.length(); i++) {
         dl.append(udl.at(i).formatDisplayName());
     }
@@ -175,6 +181,22 @@ quint64 Helper::getSelectedDeviceSize(const int index) const
     return udl.at(index).m_Size;
 }
 
+void Helper::notifySystem(const QString &title, const QString &content)
+{
+    qDebug() << content;
+#if defined(Q_OS_LINUX)
+    QProcess p;
+    QStringList args;
+    args << "-u" << "normal";
+    args << "-t" << "17000";
+    args << "-i" << "/usr/share/pardus/pardus-imagewriter/icon.svg";
+    args << title << content;
+
+    QString command = "/usr/bin/notify-send";
+    p.execute(command,args);
+#endif
+}
+
 int Helper::maximumProgressValue()
 {
     return maxValue;
@@ -188,11 +210,21 @@ void Helper::updateProgressValue(int increment)
 
 void Helper::output(QString msg)
 {
+    m_messageFromBackend = msg;
     if (msg.contains("control block address is invalid",Qt::CaseInsensitive)) {
         qDebug() << msg;
         qDebug() << "Retrying to write";
-        writeToDevice(comboBoxIndex);
+        if(retryCount < 3) {
+            retryCount ++;
+            writeToDevice(comboBoxIndex);
+        } else {
+            emit warnUser();
+            emit burningCancelled();
+            qDebug() << msg;
+        }
+
     } else {
+        emit warnUser();
         emit burningCancelled();
         qDebug() << msg;
     }

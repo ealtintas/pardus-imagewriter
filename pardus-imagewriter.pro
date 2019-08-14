@@ -1,4 +1,4 @@
-QT += qml quick widgets
+QT += qml quick widgets svg
 
 CONFIG += c++11
 
@@ -24,6 +24,7 @@ HEADERS += \
     src/imagewriter.h
 
 win32 {
+    RC_FILE = piw.rc
     SOURCES += src/platform_win.cpp \
         src/usbdevicemonitor_win.cpp
     HEADERS += src/usbdevicemonitor_win_p.h
@@ -31,12 +32,10 @@ win32 {
 }
 linux {
     SOURCES += src/platform_lin.cpp \
-        src/platform_lin_suprogram.cpp \
         src/signalhandler.cpp \
         src/usbdevicemonitor_lin.cpp
     HEADERS += src/usbdevicemonitor_lin_p.h \
-        src/signalhandler.h \
-        src/platform_lin_suprogram.h
+        src/signalhandler.h
 
     target.path = /usr/bin/
 
@@ -47,7 +46,11 @@ linux {
     icon.commands = mkdir -p /usr/share/pardus/pardus-imagewriter
     icon.path = /usr/share/pardus/pardus-imagewriter
 
-    INSTALLS += target desktop_file icon
+    policy.files = tr.org.pardus.pkexec.pardus-imagewriter.policy
+    policy.commands = mkdir -p /usr/share/polkit-1/actions
+    policy.path = /usr/share/polkit-1/actions
+
+    INSTALLS += target desktop_file icon policy
 
 }
 macx {
